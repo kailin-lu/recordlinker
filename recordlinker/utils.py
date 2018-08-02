@@ -6,18 +6,6 @@ import re
 
 FILENAME = '/data/mil_names.csv'
 
-def k_shingles(k): 
-    """
-    Returns list of k-shingles out of 26 letters + space 
-    """
-    letters = 'abcdefghijklmnopqrstuvwxyz '
-    shingles = list(map(''.join, itertools.permutations(letters, k))) 
-    for letter in letters: 
-        shingles.append(letter * k)
-    shingles.insert(0, '.  ')
-    return shingles 
-
-pairs = k_shingles(2)
 
 def load_data(pairs=pairs, filename=FILENAME, name='recname1'): 
     """
@@ -136,26 +124,6 @@ def embed_nysiis(name):
     for i in range(min(len(vec), len(nysiis))): 
         vec[i] += letters.index(nysiis[i]) 
     return vec
-        
-       
-def embed_letters(name, max_length): 
-    letters = 'abcdefghijklmnopqrstuvwxyz '
-    vec_name = [0] * max_length 
-    num_letters = len(name) 
-    for i in range(min(max_length, len(name))): 
-        letter = name[i] 
-        vec_name[i] = letters.index(letter)+1 
-    return np.array(vec_name), num_letters
-    
-
-def disembed_letters(vec_name): 
-    letters = 'abcdefghijklmnopqrstuvwxyz '
-    name = [] 
-    for i in range(len(vec_name)): 
-        index = int(vec_name[i]-1)
-        name.append(letters[index])
-    return ''.join(name)
-    
 
 def cos_similarity(u, v): 
     denom = (np.linalg.norm(u) * np.linalg.norm(v))
