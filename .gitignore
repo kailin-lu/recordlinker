@@ -1,0 +1,17 @@
+# Notebook checkpoints
+.ipynb_checkpoints
+
+# Pycharm
+.idea
+
+# Python cache
+__pycache__
+
+# Compiled python modules
+*.pyc
+
+# Setuptools distribution folder
+/dist/
+
+# Python egg metadata
+/*.egg-info
