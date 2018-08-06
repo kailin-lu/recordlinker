@@ -1,6 +1,6 @@
 # recordlinker 
 
-Work in progress for research asssistantship with Professor Suresh Naidu 
+Work in progress for research asssistantship with Professor Suresh Naidu at Columbia University 
 
 ### Example 
 
