@@ -2,25 +2,38 @@
 
 Work in progress for research asssistantship with Professor Suresh Naidu 
 
-
 ### Example 
 
+```buildoutcfg
+from recordlinker.models import VAE
 
-### Tools 
 
+model = VAE()
+model.train(namesA, namesB)
+```
+
+### Tools
+
+`models`
+
+`blocking`
 
 ### Notebooks 
 
+* AccuracyComparison
+* BlockingExample 
 
 ### Requirements 
 
 * numpy 
 * pandas 
 * scikit-learn 
-* tensorflow  
-
+* keras 
 
 ### Included datasets 
+
+Iowa Census - James F. 
+
 
 
 

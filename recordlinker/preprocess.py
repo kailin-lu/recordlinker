@@ -29,19 +29,6 @@ def clean_names(dataframe, name_cols, split_on_comma=True, max_splits=None):
             dataframe[col] = dataframe[col].apply(lower_and_strip)
     return dataframe
 
-# def k_shingles(k):
-#     """
-#     Returns list of k-shingles out of 26 letters + space
-#     """
-#     letters = 'abcdefghijklmnopqrstuvwxyz '
-#     shingles = list(map(''.join, itertools.permutations(letters, k)))
-#     for letter in letters:
-#         shingles.append(letter * k)
-#     shingles.insert(0, '.  ')
-#     return shingles
-#
-# pairs = k_shingles(2)
-
 def embed_letters(name, max_length, normalize=False, return_length=False):
     letters = 'abcdefghijklmnopqrstuvwxyz '
     vec_name = [0] * max_length
@@ -57,10 +44,13 @@ def embed_letters(name, max_length, normalize=False, return_length=False):
     else:
         return vec_name
 
-def disembed_letters(vec_name):
+def disembed_letters(vec_name, normalized=False):
     letters = 'abcdefghijklmnopqrstuvwxyz '
     name = []
-    for i in range(len(vec_name)):
-        index = int(vec_name[i] - 1)
+    for i in range(len(np.trim_zeros(vec_name))):
+        if normalized:
+            index = int(round(vec_name[i] * 27)-1)
+        else:
+            index = int(vec_name[i] - 1)
         name.append(letters[index])
     return ''.join(name)

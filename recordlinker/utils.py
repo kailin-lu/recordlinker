@@ -6,6 +6,18 @@ import re
 
 FILENAME = '/data/mil_names.csv'
 
+# def k_shingles(k):
+#     """
+#     Returns list of k-shingles out of 26 letters + space
+#     """
+#     letters = 'abcdefghijklmnopqrstuvwxyz '
+#     shingles = list(map(''.join, itertools.permutations(letters, k)))
+#     for letter in letters:
+#         shingles.append(letter * k)
+#     shingles.insert(0, '.  ')
+#     return shingles
+#
+# pairs = k_shingles(2)
 
 def load_data(pairs=pairs, filename=FILENAME, name='recname1'): 
     """

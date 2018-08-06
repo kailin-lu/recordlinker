@@ -6,3 +6,11 @@ import numpy as np
 
 # Return grouped dataframe with pairs to be checked
 
+def block(A, B,
+          vae_col,
+          date_col,
+          timeframe,
+          numerical,
+          num_range):
+    pass
+
