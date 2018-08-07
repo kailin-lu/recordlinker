@@ -79,6 +79,13 @@ def embed_letters(name, max_length, normalize=False, return_length=False):
         return vec_name
 
 def disembed_letters(vec_name, normalized=False):
+    '''
+    Convert letter-embedded names back to strings
+
+    :param vec_name:
+    :param normalized:
+    :return:
+    '''
     letters = 'abcdefghijklmnopqrstuvwxyz '
     name = []
     for i in range(len(np.trim_zeros(vec_name))):
@@ -89,6 +96,31 @@ def disembed_letters(vec_name, normalized=False):
         name.append(letters[index])
     return ''.join(name)
 
+shingles = utils.k_shingles(2)
 def embed_shingles(name, max_length, k=2, normalize=False, return_length=True):
-    shingles = utils.k_shingles(k)
+    '''
+    Embed string names as shingle vectors
+
+    :param name:
+    :param max_length:
+    :param k:
+    :param normalize:
+    :param return_length:
+    :return:
+    '''
+    if k == 2:
+        pairs = shingles
+    else:
+        pairs = utils.k_shingles(k)
+    pass
+
+def disembed_shingles(vec_name, normalize=False ):
+    '''
+    Convert shingle vectors back into string names
+
+    :param vec_name:
+    :param noramlize:
+
+    :return:
+    '''
     pass

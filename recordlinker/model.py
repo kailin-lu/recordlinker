@@ -4,6 +4,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import numpy as np
+import warnings
 
 import keras
 import keras.backend as K
@@ -12,6 +13,8 @@ from keras import Model
 from keras.layers import Input, Dense, Lambda, Conv1D, MaxPool1D, UpSampling1D, LSTM, RepeatVector
 from keras.optimizers import RMSprop, Adam
 from keras.losses import categorical_crossentropy
+
+from .preprocess import disembed_letters, disembed_shingles
 
 # Variational autoencoder sampling
 def sampling(args):
@@ -27,8 +30,7 @@ class CheckReconstruction(keras.callbacks.Callback):
     def __init__(self,
                  type='letter',
                  n=5,
-                 random=False,
-                 validation=True):
+                 random=False):
         """
 
         :param type: 'letter' or 'shingle'
@@ -36,28 +38,26 @@ class CheckReconstruction(keras.callbacks.Callback):
         :param random: display random n if True else display first n in batch
         """
         super().__init__()
-        self.type = type
+        if type == 'letter':
+            self.disembed_func = disembed_letters
+        elif type == 'shingle':
+            self.disembed_func = disembed_shingles
+        else:
+            warnings.warn('Type must be "letter" or "shingle"')
         self.n = n
         self.random = random
-        self.validation = validation
-        self.names = None
         self.names_to_reconstruct = None
 
-    def on_train_begin(self, logs):
-        if self.validation:
-            self.names = self.model.validation_data
-        else:
-            self.names = self.model.training_data
-        if self.random:
-            # Pick n random rows from validation data
-            rows = np.random.randint(0, self.names.shape[0], self.n)
-            self.names_to_reconstruct = self.names[rows,:]
-        else:
-            # Take first n names from data
-            self.names_to_reconstruct = self.names[:self.n, :]
+    def on_train_begin(self, logs={}):
+        names = self.model.predict(self.model.inputs)
 
-    def on_epoch_end(self):
-        pass
+
+    # def on_epoch_end(self, epoch, logs={}):
+    #     pred = self.model.predict(self.names_to_reconstruct)
+    #     print('Reconstruction Check:')
+    #     for i in range(self.n):
+    #         print(self.disembed_func(self.names_to_reconstruct[i,:]))
+    #         print(self.disembed_func(pred[i,:]))
 
 # Helper
 class BinaryEncoder():
@@ -208,6 +208,7 @@ class VAE():
               namesB,
               epochs,
               run_id,
+              save_path,
               optimizer='adam',
               validation_split=.2,
               earlystop=True,
@@ -253,10 +254,10 @@ class VAE():
                                        batch_size=self.batch_size)
             callbacks.append(tensor_board)
         if reconstruct:
-            check_recon = CheckReconstruction(type='letter')
+            check_recon = CheckReconstruction(type='letter',
+                                              n=5,
+                                              random=False)
             callbacks.append(check_recon)
-
-
         model.fit(namesA, namesB,
                   shuffle=True,
                   epochs=epochs,
@@ -265,10 +266,11 @@ class VAE():
                   callbacks=callbacks)
 
         # Save full model
-
-        # Save encoder
-
+        model.save(save_path + '.h5')
+        # Save enccoder
+        encoder.save(save_path + '_encoder.h5')
         # Save decoder
+        decoder.save(save_path + '_decoder.h5')
 
 
 class ConvolutionalVAE(VAE):
@@ -335,7 +337,7 @@ class LSTMVAE(VAE):
 
         earlystop = EarlyStopping(monitor='val_acc', patience=5, baseline=.6)
         tensorboard = TensorBoard(log_dir='/tmp/lstm_vae')
-        check_reconstruction = CheckReconstruction()
+        check_reconstruction = CheckReconstruction(n=5, type='letter', random=False)
         callbacks = [earlystop, tensorboard, check_reconstruction]
 
         model.fit()
