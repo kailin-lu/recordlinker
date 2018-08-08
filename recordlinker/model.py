@@ -10,7 +10,8 @@ import keras
 import keras.backend as K
 from keras.callbacks import TensorBoard, EarlyStopping
 from keras import Model
-from keras.layers import Input, Dense, Lambda, Conv1D, MaxPool1D, UpSampling1D, LSTM, RepeatVector
+from keras.layers import Input, Dense, Lambda, Conv1D, MaxPool1D,\
+    UpSampling1D, LSTM, RepeatVector, Flatten
 from keras.optimizers import RMSprop, Adam
 from keras.losses import categorical_crossentropy
 
@@ -48,8 +49,8 @@ class CheckReconstruction(keras.callbacks.Callback):
         self.random = random
         self.names_to_reconstruct = None
 
-    def on_train_begin(self, logs={}):
-        names = self.model.predict(self.model.inputs)
+    def on_epoch_end(self, logs={}):
+        pred = self.model.predict(self.model.inputs)
 
 
     # def on_epoch_end(self, epoch, logs={}):
@@ -62,12 +63,16 @@ class CheckReconstruction(keras.callbacks.Callback):
 # Helper
 class BinaryEncoder():
     def __init__(self):
-        pass
+        self.median_mu = None
 
-    def calculate_median_mu(self):
-        pass
+    def calculate_median_mu(self, model_path, train_data):
+        encoder = keras.load_model(model_path)
+        mu = encoder.predict(train_data)
+        self.median_mu = np.median(mu, axis=1)
 
     def binary_encode(self):
+        if self.median_mu == None:
+            print('Median mu must be calculated first')
         pass
 
 # Encoders
@@ -92,26 +97,40 @@ def encoder_dense(enc_input,
     return encode_layers
 
 
-def encoder_conv(batch_size,
-                 orig_dim,
-                 activation):
-    inp = Input(batch_shape=(batch_size, orig_dim))
-    conv = Conv1D(activation=activation)(inp)
-    pool = MaxPool1D()
-    conv2 = Conv1D()
-    encoded = MaxPool1D()
-    return Model(inp, encoded)
+def encoder_conv(enc_input,
+                 activation='relu',
+                 filters=[16, 32]):
+    '''Encoder with convolutional layers'''
+    encode_layers = [enc_input]
+    encode_layers.append(Conv1D(filters=filters[0],
+                                kernel_size=2,
+                                activation=activation,
+                                padding='same',
+                                name='conv0')(encode_layers[-1]))
+    encode_layers.append(MaxPool1D(name='pool0',
+                                   pool_size=2,
+                                   strides=1,
+                                   padding='valid')(encode_layers[-1]))
+    encode_layers.append(Conv1D(filters=filters[1],
+                                kernel_size=2,
+                                activation=activation,
+                                padding='same',
+                                name='conv1')(encode_layers[-1]))
+    encode_layers.append(MaxPool1D(name='pool1',
+                                   pool_size=2,
+                                   strides=1,
+                                   padding='valid')(encode_layers[-1]))
+    return encode_layers
 
 
-def encoder_lstm(timesteps,
-                 orig_dim,
-                 latent_dim):
-    inputs = Input(shape=(timesteps, orig_dim))
-    return LSTM(latent_dim)(inputs)
-
-
-def encoder_binary(encoder_path, train_data):
-    pass
+def encoder_lstm(enc_inputs,
+                 latent_dim,
+                 encode_dim):
+    encode_layers = [enc_inputs]
+    for i, units in enumerate(encode_dim):
+        encode_layers.append(LSTM(units)(encode_layers[-1]))
+    encode_layers.append(LSTM(latent_dim)(encode_layers-1))
+    return encode_layers
 
 
 # Decoders
@@ -145,6 +164,7 @@ def decoder_conv(z):
 
 
 def decoder_lstm(timesteps, encoded, input_dim):
+
     decoded = RepeatVector(timesteps)(encoded)
     return LSTM(input_dim, return_sequences=True)(decoded)
 
@@ -213,10 +233,7 @@ class VAE():
               validation_split=.2,
               earlystop=True,
               tensorboard=True,
-              reconstruct=True,
-              reconstruct_type='letter',
-              reconstruct_n=5,
-              reconstruct_val=True):
+              reconstruct=True):
         '''
         Train the dense autoencoder model
 
@@ -274,21 +291,38 @@ class VAE():
 
 
 class ConvolutionalVAE(VAE):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, batch_size, orig_dim):
+        super().__init__(batch_size=batch_size,
+                         orig_dim=orig_dim,
+                         latent_dim=2,
+                         encode_dim=2,
+                         decode_dim=2,
+                         lr=.001)
 
     def _build_model(self):
-        encoder = encoder_conv()
-        mu = Dense(self.latent_dim, name='mu')(encoder.layers[-1])
-        log_sigma = Dense(self.latent_dim, name='log_sigma')(encoder.layers[-1])
-        z = Lambda(sampling)([mu, log_sigma])
-        decoder = decoder_conv(z)
-        model = Model(encoder, decoder)
-        print(model.summary())
-        return model, encoder, decoder
-
-    def train(self):
         K.clear_session()
+        enc_inp = Input(batch_shape=(self.batch_size, self.orig_dim, 1))
+        encoder_layers = encoder_conv(enc_inp, activation=self.activation)
+        test = Flatten(data_format='channels_last')(encoder_layers[-1])
+
+        mu = Dense(self.latent_dim, name='mu')(test)
+        log_sigma = Dense(self.latent_dim, name='log_sigma')(test)
+        #z = Lambda(sampling)([mu, log_sigma])
+        model = Model(enc_inp, [mu, log_sigma])
+        print(model.summary())
+        return model
+
+    def train(self,
+              namesA,
+              namesB,
+              epochs,
+              run_id,
+              save_path,
+              optimizer='adam',
+              validation_split=.2,
+              earlystop=True,
+              tensorboard=True,
+              reconstruct=True):
         model, encoder, decoder = self._build_model()
 
         model.compile()
@@ -309,42 +343,29 @@ class ConvolutionalVAE(VAE):
 
 
 class LSTMVAE(VAE):
-    def __init__(self):
+    def __init__(self,
+                 timesteps,
+                 orig_dim,
+                 lr):
         super().__init__()
+        self.timesteps = timesteps
+        self.orig_dim = orig_dim
 
     def _build_model(self):
-        encoder = encoder_lstm()
+        encoder_input = Input(shape=(self.timesteps, self.orig_dim))
+        encoder = encoder_lstm(encoder_input)
 
         mu = Dense(self.latent_dim, name='mu')(encoder.layers[-1])
         log_sigma = Dense(self.latent_dim, name='log_sigma')(encoder.layers[-1])
         z = Lambda(sampling)([mu, log_sigma])
+        decoder_layers = decoder_lstm(z)
+        model = Model(encoder_input, decoder_layers[-1])
 
-        decoder = decoder_conv(z)
-        model = Model(encoder, decoder)
+        encoder = Model(encoder_input, mu)
+
+        decoder_input = Input(shape=(self.timesteps, self.orig_dim))
+        decoder_layers = decoder_lstm(decoder_input)
+        decoder = Model(decoder_input, decoder_layers[-1])
+
         print(model.summary())
         return model, encoder, decoder
-
-    def train(self,
-              namesA,
-              namesB,
-              earlystop=True,
-              tensorboard=True,
-              check_recon=True):
-        K.clear_session()
-        model, encoder, decoder = self._build_model()
-
-        model.compile()
-
-        earlystop = EarlyStopping(monitor='val_acc', patience=5, baseline=.6)
-        tensorboard = TensorBoard(log_dir='/tmp/lstm_vae')
-        check_reconstruction = CheckReconstruction(n=5, type='letter', random=False)
-        callbacks = [earlystop, tensorboard, check_reconstruction]
-
-        model.fit()
-
-        # Save full model
-        model.save()
-
-        # Save encoder
-
-        # Save decoder
