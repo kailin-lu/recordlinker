@@ -1,11 +1,19 @@
 from unittest import TestCase
-import factories
 
-from recordlinker.model import VariationalAutoencoder
+from recordlinker.model import VAE, ConvolutionalVAE, LSTMVAE
+
+class TestDenseEncoder(TestCase):
+    pass
+
+class TestConvEncoder(TestCase):
+    pass
+
+class TestLSTMEncoder(TestCase):
+    pass
 
 class TestVariationalAutoencoder(TestCase):
     def setUp(self):
         self.vae = factories.VarationalAutoencoder()
 
     def test_variational(self):
-        return isinstance(self.vae, VariationalAutoencoder)
+        return isinstance(self.vae, VAE)
