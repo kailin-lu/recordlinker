@@ -11,7 +11,7 @@ import keras.backend as K
 from keras.callbacks import TensorBoard, EarlyStopping
 from keras import Model
 from keras.layers import Input, Dense, Lambda, Conv1D, MaxPool1D,\
-    UpSampling1D, LSTM, RepeatVector, Flatten
+    UpSampling1D, LSTM, RepeatVector, Flatten, Reshape
 from keras.optimizers import RMSprop, Adam
 from keras.losses import categorical_crossentropy
 
@@ -105,7 +105,7 @@ def encoder_conv(enc_input,
     encode_layers.append(Conv1D(filters=filters[0],
                                 kernel_size=2,
                                 activation=activation,
-                                padding='same',
+                                padding='valid',
                                 name='conv0')(encode_layers[-1]))
     encode_layers.append(MaxPool1D(name='pool0',
                                    pool_size=2,
@@ -114,7 +114,7 @@ def encoder_conv(enc_input,
     encode_layers.append(Conv1D(filters=filters[1],
                                 kernel_size=2,
                                 activation=activation,
-                                padding='same',
+                                padding='valid',
                                 name='conv1')(encode_layers[-1]))
     encode_layers.append(MaxPool1D(name='pool1',
                                    pool_size=2,
@@ -155,12 +155,33 @@ def decoder_dense(dec_input,
                                name='reconstruction')(decode_layers[-1]))
     return decode_layers
 
-def decoder_conv(z):
-    conv = Conv1D()(z)
-    upsample = UpSampling1D()(conv)
-    conv2 = Conv1D(upsample)
-    upsample2 = UpSampling1D(conv2)
-    return Model(conv, upsample2)
+
+def decoder_conv(z,
+                 orig_units,
+                 filters=[32, 1],
+                 activation='relu'):
+    '''Convolutional decoder with two conv-upsample layers'''
+    decode_layers = [z]
+    decode_layers.append(Conv1D(kernel_size=2,
+                                padding='valid',
+                                filters=filters[0],
+                                activation=activation,
+                                name='dec_conv0')(decode_layers[-1]))
+    decode_layers.append(UpSampling1D(size=1,
+                                      name='upsample0')(decode_layers[-1]))
+    decode_layers.append(Conv1D(kernel_size=2,
+                                padding='valid',
+                                filters=filters[1],
+                                activation=activation,
+                                name='dec_conv1')(decode_layers[-1]))
+    decode_layers.append(UpSampling1D(size=2,
+                                      name='upsample1')(decode_layers[-1]))
+    decode_layers.append(Reshape((int(decode_layers[-1].shape[1]),))(decode_layers[-1]))
+    decode_layers.append(Dense(orig_units,
+                               activation='sigmoid',
+                               name='reconstruction')(decode_layers[-1]))
+    decode_layers.append(Reshape((int(decode_layers[-1].shape[1]),1))(decode_layers[-1]))
+    return decode_layers
 
 
 def decoder_lstm(timesteps, encoded, input_dim):
@@ -291,26 +312,37 @@ class VAE():
 
 
 class ConvolutionalVAE(VAE):
-    def __init__(self, batch_size, orig_dim):
+    def __init__(self, batch_size, orig_dim, latent_dim):
         super().__init__(batch_size=batch_size,
                          orig_dim=orig_dim,
-                         latent_dim=2,
+                         latent_dim=latent_dim,
                          encode_dim=2,
                          decode_dim=2,
                          lr=.001)
 
     def _build_model(self):
         K.clear_session()
+
         enc_inp = Input(batch_shape=(self.batch_size, self.orig_dim, 1))
         encoder_layers = encoder_conv(enc_inp, activation=self.activation)
-        test = Flatten(data_format='channels_last')(encoder_layers[-1])
 
-        mu = Dense(self.latent_dim, name='mu')(test)
-        log_sigma = Dense(self.latent_dim, name='log_sigma')(test)
-        #z = Lambda(sampling)([mu, log_sigma])
-        model = Model(enc_inp, [mu, log_sigma])
+        flatten_size = int(encoder_layers[-1].shape[1]) * int(encoder_layers[-1].shape[2])
+        flatten = Reshape((flatten_size,), name='flatten')(encoder_layers[-1])
+
+        mu = Dense(self.latent_dim, name='mu')(flatten)
+        log_sigma = Dense(self.latent_dim, name='log_sigma')(flatten)
+        z = Lambda(sampling)([mu, log_sigma])
+        z_add_dim = Reshape((int(z.shape[1]), 1))(z)
+
+        decoder_layers = decoder_conv(z_add_dim, self.orig_dim)
+        model = Model(enc_inp, decoder_layers[-1])
+        encoder = Model(enc_inp, mu)
+
+        dec_inp = Input(batch_shape=(self.batch_size, self.latent_dim, 1))
+        dec_layers = decoder_conv(dec_inp, self.orig_dim)
+        decoder = Model(dec_inp, dec_layers[-1])
         print(model.summary())
-        return model
+        return model, encoder, decoder
 
     def train(self,
               namesA,
