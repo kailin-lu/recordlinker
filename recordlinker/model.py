@@ -7,6 +7,7 @@ from __future__ import division
 import os
 
 import numpy as np
+import tensorflow as tf
 import warnings
 
 import keras
@@ -53,9 +54,11 @@ class VariationalLoss():
 class CheckReconstruction(keras.callbacks.Callback):
     '''Qualitative check of name reconstruction'''
     def __init__(self,
-                 type='letter',
+                 train_data,
+                 batch_size,
                  n=5,
-                 random=False):
+                 type='letter',
+                 display=20):
         """
 
         :param type: 'letter' or 'shingle'
@@ -69,22 +72,26 @@ class CheckReconstruction(keras.callbacks.Callback):
             self.disembed_func = disembed_shingles
         else:
             warnings.warn('Type must be "letter" or "shingle"')
+        self.batch_size = batch_size
+        self.train_data = train_data[:batch_size, :]
         self.n = n
-        self.random = random
-        self.names_to_reconstruct = None
+        self.display = display
+        self.batch_data = self.train_data[:self.batch_size,:]
+        self.seen = 0
 
-    def on_epoch_end(self, logs={}):
-        pred = self.model.predict(self.model.inputs)
+    def on_epoch_end(self, epoch, logs={}):
+        self.prediction = []
+        if self.seen % self.display == 0:
+            pred = self.model.predict(self.batch_data)
+            for i in range(self.n):
+                orig_name = self.disembed_func(self.train_data[i,:])
+                pred_name = self.disembed_func(pred[i,:])
+                self.prediction.append({'Orig': orig_name, 'Pred:': pred_name})
+            for pred in self.prediction:
+                print(pred)
+        self.seen += 1
 
-
-    # def on_epoch_end(self, epoch, logs={}):
-    #     pred = self.model.predict(self.names_to_reconstruct)
-    #     print('Reconstruction Check:')
-    #     for i in range(self.n):
-    #         print(self.disembed_func(self.names_to_reconstruct[i,:]))
-    #         print(self.disembed_func(pred[i,:]))
-
-# Helper
+    # Helper
 class BinaryEncoder():
     def __init__(self):
         self.median_mu = None
@@ -325,9 +332,10 @@ class VAE():
                                        batch_size=self.batch_size)
             callbacks.append(tensor_board)
         if reconstruct:
-            check_recon = CheckReconstruction(type='letter',
-                                              n=5,
-                                              random=False)
+            check_recon = CheckReconstruction(train_data=namesA,
+                                              batch_size=self.batch_size,
+                                              type='letter',
+                                              n=5)
             callbacks.append(check_recon)
         model.fit(namesA, namesB,
                   shuffle=True,

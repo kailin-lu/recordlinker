@@ -54,7 +54,10 @@ def create_training_set(dataframe,
     embedded = [embed_func(name, max_length=max_length, normalize=normalize) for name in names]
     return np.vstack(embedded)
 
-def embed_letters(name, max_length, normalize=False, return_length=False):
+def embed_letters(name,
+                  max_length,
+                  normalize=False,
+                  return_length=False):
     '''Embed a string name as a vector using letters
 
     :param name: string to convert
@@ -78,7 +81,9 @@ def embed_letters(name, max_length, normalize=False, return_length=False):
     else:
         return vec_name
 
-def disembed_letters(vec_name, normalized=False):
+def disembed_letters(vec_name,
+                     normalized=True,
+                     onehot=False):
     '''
     Convert letter-embedded names back to strings
 
@@ -95,6 +100,7 @@ def disembed_letters(vec_name, normalized=False):
             index = int(vec_name[i] - 1)
         name.append(letters[index])
     return ''.join(name)
+
 
 shingles = utils.k_shingles(2)
 def embed_shingles(name, max_length, k=2, normalize=False, return_length=True):
