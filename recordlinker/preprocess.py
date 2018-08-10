@@ -1,11 +1,11 @@
+'''Preprocess string name columns in dataframes'''
+
 from __future__ import absolute_import
 from __future__ import print_function
 
 import re
-import itertools
 import warnings
 
-import pandas as pd
 import numpy as np
 
 from . import utils
@@ -82,7 +82,6 @@ def embed_letters(name,
         return vec_name
 
 def disembed_letters(vec_name,
-                     normalized=True,
                      onehot=False):
     '''
     Convert letter-embedded names back to strings
@@ -92,13 +91,18 @@ def disembed_letters(vec_name,
     :return:
     '''
     letters = 'abcdefghijklmnopqrstuvwxyz '
+    if len(vec_name.shape)==2:
+        vec_name = np.argmax(vec_name, -1)
     name = []
     for i in range(len(np.trim_zeros(vec_name))):
-        if normalized:
+        if np.max(vec_name) <= 1.:
             index = int(round(vec_name[i] * 27)-1)
         else:
             index = int(vec_name[i] - 1)
-        name.append(letters[index])
+        if index <= len(letters):
+            name.append(letters[index])
+        else:
+            name.append(' ')
     return ''.join(name)
 
 
