@@ -14,12 +14,15 @@ model.train(namesA, namesB)
 
 ### Tools
 
+`preprocess`
+
 `models`
 
 `blocking`
 
 ### Notebooks 
 
+* TrainingExample
 * AccuracyComparison
 * BlockingExample 
 

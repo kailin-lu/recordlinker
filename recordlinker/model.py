@@ -128,29 +128,23 @@ def encoder_conv(enc_input,
                  activation='relu',
                  kernel_size=3,
                  pool_size=3,
-                 filters=[16, 32]):
+                 filters=[16,16]):
     '''Encoder with convolutional layers'''
     encode_layers = [enc_input]
     encode_layers.append(Conv1D(filters=filters[0],
                                 kernel_size=kernel_size,
+                                kernel_regularizer=regularizers.l2(.01),
                                 activation=activation,
                                 strides=1,
                                 padding='same',
                                 name='conv0')(encode_layers[-1]))
-    encode_layers.append(MaxPool1D(name='pool0',
-                                   pool_size=pool_size,
-                                   strides=1,
-                                   padding='valid')(encode_layers[-1]))
     encode_layers.append(Conv1D(filters=filters[1],
                                 kernel_size=kernel_size,
+                                kernel_regularizer=regularizers.l2(.01),
                                 activation=activation,
                                 strides=1,
                                 padding='same',
                                 name='conv1')(encode_layers[-1]))
-    encode_layers.append(MaxPool1D(name='pool1',
-                                   pool_size=pool_size,
-                                   strides=1,
-                                   padding='valid')(encode_layers[-1]))
     return encode_layers
 
 
@@ -193,24 +187,30 @@ def decoder_dense(dec_input,
 def decoder_conv(z,
                  orig_units,
                  kernel_size=3,
-                 filter_size=32,
+                 filter_size=[16,16],
                  upsample_size=2,
                  activation='relu'):
-    '''Convolutional decoder with two conv-upsample layers'''
+    '''Convolutional decoder with convolutional layers'''
     decode_layers = [z]
     decode_layers.append(Reshape((int(z.shape[1]),1))(z))
     decode_layers.append(Conv1D(kernel_size=kernel_size,
                                 padding='same',
-                                filters=filter_size,
+                                filters=filter_size[0],
+                                kernel_regularizer=regularizers.l2(.01),
                                 activation=activation,
                                 name='dec_conv_0')(decode_layers[-1]))
-    decode_layers.append(UpSampling1D(size=upsample_size,
-                                      name='upsample_0')(decode_layers[-1]))
+    decode_layers.append(Conv1D(kernel_size=kernel_size,
+                                padding='same',
+                                filters=filter_size[1],
+                                activation=activation,
+                                kernel_regularizer=regularizers.l2(.01),
+                                name='dec_conv_1')(decode_layers[-1]))
     decode_layers.append(Conv1D(kernel_size=kernel_size,
                                 padding='same',
                                 filters=1,
                                 activation=activation,
-                                name='dec_conv_1')(decode_layers[-1]))
+                                kernel_regularizer=regularizers.l2(.01),
+                                name='dec_conv_2')(decode_layers[-1]))
     decode_layers.append(Reshape((int(decode_layers[-1].shape[1]),))(decode_layers[-1]))
     decode_layers.append(Dense(orig_units,
                                activation='sigmoid',
@@ -413,12 +413,12 @@ class ConvolutionalVAE(VAE):
         model = Model(enc_inp, decoder_layers[-1])
         encoder = Model(enc_inp, mu)
 
-        dec_inp = Input(batch_shape=(self.batch_size, self.latent_dim, 1))
+        dec_inp = Input(batch_shape=(self.batch_size, self.latent_dim))
         dec_layers = decoder_conv(dec_inp, self.orig_dim)
         decoder = Model(dec_inp, dec_layers[-1])
         print(model.summary())
 
-        conv_loss = VariationalLoss(mu, log_sigma, loss_type='mse')
+        conv_loss = VariationalLoss(mu, log_sigma, loss_type='xent')
         return model, encoder, decoder, conv_loss.vae_loss
 
 
