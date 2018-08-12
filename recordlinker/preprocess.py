@@ -48,7 +48,7 @@ def create_training_set(dataframe,
                       '"shingles"' )
     if embed_type == 'letters':
         embed_func = embed_letters
-    if embed_type == 'shingles':
+    else:
         embed_func = embed_shingles
     names = dataframe[name_col]
     embedded = [embed_func(name, max_length=max_length, normalize=normalize) for name in names]
@@ -105,9 +105,8 @@ def disembed_letters(vec_name,
             name.append(' ')
     return ''.join(name)
 
-
 shingles = utils.k_shingles(2)
-def embed_shingles(name, max_length, k=2, normalize=False, return_length=True):
+def embed_shingles(name, max_length, k=2, normalize=False):
     '''
     Embed string names as shingle vectors
 
@@ -116,25 +115,49 @@ def embed_shingles(name, max_length, k=2, normalize=False, return_length=True):
     :param k:
     :param normalize:
     :param return_length:
-    :return:
     '''
     if k == 2:
         pairs = shingles
     else:
         pairs = utils.k_shingles(k)
-    pass
+    vec_name = []
+    for i in range(min(len(name), max_length)):
+        shingle = name[i:i + 2]
+        try:
+            vec_name.append(pairs.index(shingle))
+        except ValueError:
+            pass
+    if len(vec_name) != max_length:
+        remaining = [0] * (max_length - len(vec_name))
+        vec_name.extend(remaining)
+    vec_name = np.array(vec_name)
+    if normalize:
+        return vec_name / len(pairs)
+    else:
+        return vec_name
 
-def disembed_shingles(vec_name, normalize=False ):
+def disembed_shingles(vec_name, k=2, normalize=False):
     '''
-    Convert shingle vectors back into string names
-
-    :param vec_name:
-    :param noramlize:
-
-    :return:
+    Disembed vectors back into string names
     '''
-    pass
-
+    if k == 2:
+        pairs = shingles
+    else:
+        pairs = utils.k_shingles(k)
+    name = ''
+    for e, i in enumerate(vec_name):
+        if np.max(vec_name) <= 1.0:
+            index = int(round(i * len(pairs)))
+        else:
+            index = int(round(i))
+        try:
+            if np.sum(vec_name[e+1:]) == 0.:
+                name += pairs[index]
+            else:
+                name += pairs[index][0]
+        except IndexError:
+            pass
+    return name
 
 # def embed_consecutive_shingles(name, max_length, pairs=pairs):
 #     vec_name = [''] * max_length

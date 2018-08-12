@@ -24,7 +24,7 @@ model.train(namesA, namesB)
 
 * TrainingExample
 * AccuracyComparison
-* BlockingExample 
+* Blocking****
 
 ### Requirements 
 

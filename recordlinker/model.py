@@ -253,7 +253,7 @@ class VAE():
 
     def _build_model(self):
         K.clear_session()
-        enc_input = Input(batch_shape=(self.batch_size, self.orig_dim))
+        enc_input = Input(shape=(self.orig_dim,))
         encoder_layers = encoder_dense(enc_input,
                                        self.batch_size,
                                        self.orig_dim,
@@ -272,7 +272,7 @@ class VAE():
         model = Model(enc_input, decoder_layers[-1])
         encoder = Model(enc_input, mu)
 
-        dec_input = Input(batch_shape=(self.batch_size, self.latent_dim))
+        dec_input = Input(shape=(self.latent_dim,))
         decoder_model = decoder_dense(dec_input,
                                       self.orig_dim,
                                       self.decode_dim,
@@ -359,25 +359,16 @@ class VAE():
                   callbacks=callbacks)
 
         # Save full model
-        model.save(save_path + '.h5')
-        model_json = model.to_json()
-        with open(save_path + '.json', 'w') as json_file:
-            json_file.write(model_json)
-        print('Saved model in: {}'.format(save_path + '.h5'))
+        model.save(save_path + 'model.h5')
+        print('Saved model in: {}'.format(save_path + 'model.h5'))
 
         # Save encoder
-        encoder.save(save_path + '_encoder.h5')
-        enc_json = encoder.to_json()
-        with open(save_path + '_encoder.json', 'w') as json_file:
-            json_file.write(enc_json)
-        print('Saved encoder in: {}'.format(save_path + '_encoder.h5'))
+        encoder.save(save_path + '/encoder.h5')
+        print('Saved encoder in: {}'.format(save_path + 'encoder.h5'))
 
         #Save decoder
-        decoder.save(save_path + '_decoder.h5')
-        dec_json = decoder.to_json()
-        with open(save_path + '_decoder.json', 'w') as json_file:
-            json_file.write(dec_json)
-        print('Saved decoder in: {}'.format(save_path + '_decoder.h5'))
+        decoder.save(save_path + '/decoder.h5')
+        print('Saved decoder in: {}'.format(save_path + 'decoder.h5'))
 
         return model, encoder, decoder
 
@@ -394,14 +385,13 @@ class ConvolutionalVAE(VAE):
     def _build_model(self):
         K.clear_session()
 
-        enc_inp = Input(batch_shape=(self.batch_size, self.orig_dim))
+        enc_inp = Input(batch_shape=(None, self.orig_dim))
         enc_add_dim = Reshape((self.orig_dim, 1))(enc_inp)
         encoder_layers = encoder_conv(enc_add_dim, activation=self.activation)
 
         flatten = Flatten(name='flatten')(encoder_layers[-1])
 
-        mu = Dense(self.latent_dim,
-                   name='mu')(flatten)
+        mu = Dense(self.latent_dim, name='mu')(flatten)
         mu = LeakyReLU(.02)(mu)
         log_sigma = Dense(self.latent_dim, name='log_sigma')(flatten)
         log_sigma = LeakyReLU(.02)(log_sigma)
@@ -413,7 +403,7 @@ class ConvolutionalVAE(VAE):
         model = Model(enc_inp, decoder_layers[-1])
         encoder = Model(enc_inp, mu)
 
-        dec_inp = Input(batch_shape=(self.batch_size, self.latent_dim))
+        dec_inp = Input(shape=(None, self.latent_dim))
         dec_layers = decoder_conv(dec_inp, self.orig_dim)
         decoder = Model(dec_inp, dec_layers[-1])
         print(model.summary())
@@ -468,8 +458,7 @@ class LSTMVAE(VAE):
         model = Model(encoder_input, decoder_layers[-1])
         encoder = Model(encoder_input, mu)
 
-        decoder_input = Input(batch_shape=(self.batch_size,
-                                           self.latent_dim))
+        decoder_input = Input(shape=(None, self.latent_dim))
         dec_layers = decoder_lstm(decoder_input,
                                   orig_dim=self.orig_dim,
                                   timesteps=self.timesteps)

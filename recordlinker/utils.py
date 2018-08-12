@@ -10,23 +10,8 @@ def k_shingles(k):
     shingles = list(map(''.join, itertools.permutations(letters, k)))
     for letter in letters:
         shingles.append(letter * k)
-    shingles.insert(0, '.  ')
+    shingles.insert(0, '')
     return shingles
-
-# def embed_consecutive_shingles(name, max_length, pairs=pairs):
-#     vec_name = [''] * max_length
-#     if len(name) % 2 == 1:
-#         name = name + ' '
-#     num_shingles = len(name)
-#     idx = 0
-#     for i in range(0,min(max_length, num_shingles),2):
-#         try:
-#             shingle = name[i:i+2]
-#             vec_name[idx] = shingle
-#             idx += 1
-#         except:
-#             print(name[i:i+2])
-#     return vec_name, num_shingles // 2
 
 def embed_soundex(name, max_length):
     """
