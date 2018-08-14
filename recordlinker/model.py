@@ -73,9 +73,9 @@ class CheckReconstruction(keras.callbacks.Callback):
         :param display: Display reconstruction after every `display` epochs
         """
         super().__init__()
-        if type == 'letter':
+        if type in ['letter', 'l']:
             self.disembed_func = disembed_letters
-        elif type == 'shingle':
+        elif type in ['shingle', 's']:
             self.disembed_func = disembed_shingles
         else:
             warnings.warn('Type must be "letter" or "shingle"')
@@ -458,8 +458,9 @@ class LSTMVAE(VAE):
         model = Model(encoder_input, decoder_layers[-1])
         encoder = Model(encoder_input, mu)
 
-        decoder_input = Input(shape=(None, self.latent_dim))
+        decoder_input = Input(shape=(self.latent_dim,))
         dec_layers = decoder_lstm(decoder_input,
+                                  decode_dim=self.decode_dim,
                                   orig_dim=self.orig_dim,
                                   timesteps=self.timesteps)
         decoder = Model(decoder_input, dec_layers[-1])

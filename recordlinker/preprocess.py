@@ -4,11 +4,11 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 import re
-import warnings
-
 import numpy as np
+from keras.utils.np_utils import to_categorical
 
 from . import utils
+
 
 def lower_and_strip(x):
     '''Lower case, strip white space and punctuation'''
@@ -27,10 +27,15 @@ def clean_names(dataframe,
     '''
     for col in name_cols:
         if split_on_comma:
-            split_columns = dataframe[col].str.split(',', max_splits, expand=True)
+            split_columns = dataframe[col].str.split(',',
+                                                     max_splits,
+                                                     expand=True)
             for col in split_columns.columns:
                 split_columns[col] = split_columns[col].apply(lower_and_strip)
-            dataframe = dataframe.merge(split_columns, left_index=True, right_index=True)
+
+            dataframe = dataframe.merge(split_columns,
+                                        left_index=True,
+                                        right_index=True)
         else:
             dataframe[col] = dataframe[col].apply(lower_and_strip)
     return dataframe
@@ -39,20 +44,27 @@ def create_training_set(dataframe,
                         name_col,
                         max_length,
                         embed_type,
-                        normalize=True):
+                        normalize=True,
+                        categorical=False):
     '''Create training data for autoencoder
 
     :return: numpy array of size n_names x max_length'''
     if embed_type not in ['letters', 'shingles']:
-        warnings.warn('`embed_type` not recognized. Must be "letters" or '
+        print('`embed_type` not recognized. Must be "letters" or '
                       '"shingles"' )
+        return
     if embed_type == 'letters':
         embed_func = embed_letters
     else:
         embed_func = embed_shingles
     names = dataframe[name_col]
-    embedded = [embed_func(name, max_length=max_length, normalize=normalize) for name in names]
-    return np.vstack(embedded)
+    embedded = [embed_func(name, max_length=max_length, normalize=normalize)
+                for name in names]
+    embedded = np.vstack(embedded)
+    if categorical:
+        return to_categorical(embedded, 28)
+    else:
+        return embedded
 
 def embed_letters(name,
                   max_length,
@@ -158,18 +170,3 @@ def disembed_shingles(vec_name, k=2, normalize=False):
         except IndexError:
             pass
     return name
-
-# def embed_consecutive_shingles(name, max_length, pairs=pairs):
-#     vec_name = [''] * max_length
-#     if len(name) % 2 == 1:
-#         name = name + ' '
-#     num_shingles = len(name)
-#     idx = 0
-#     for i in range(0,min(max_length, num_shingles),2):
-#         try:
-#             shingle = name[i:i+2]
-#             vec_name[idx] = shingle
-#             idx += 1
-#         except:
-#             print(name[i:i+2])
-#     return vec_name, num_shingles // 2

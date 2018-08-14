@@ -8,8 +8,7 @@ setup(name='recordlinker',
       install_requires=[
           'numpy',
           'pandas',
-          'tensorflow',
-          'keras'
+          'tensorflow'
       ],
       test_suite='nose.collector',
       tests_require=['nose']

@@ -1,21 +1,27 @@
 from unittest import TestCase
 
-import recordlinker
+from recordlinker import preprocess
 
 class TestCleanNames(TestCase):
+    def test_lower_and_strip(self):
+        f = preprocess.lower_and_strip()
+        self.assertEqual(f('Kailin!', 'kailin'))
+
     def test_clean_name(self):
-        d = recordlinker.preprocess.clean_names()
+        f = preprocess.clean_names()
         pass
 
 class TestEmbedLetters(TestCase):
-    # Normalize
+    def __init__(self):
+        self.max_length = 12
+
+    def test_letters_normalized(self):
+        f = preprocess.embed_letters(max_length=self.max_length,
+                                     normalize=True)
+        self.assertEqual(len(f('kailin'), self.max_length))
 
     # Not normalized
 
-    # With length
-
-    # Without length
-    pass
 
 class TestDisembedLetters(TestCase):
     # Disembed
