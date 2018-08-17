@@ -11,9 +11,9 @@ class TestConvEncoder(TestCase):
 class TestLSTMEncoder(TestCase):
     pass
 
-class TestVariationalAutoencoder(TestCase):
-    def setUp(self):
-        self.vae = factories.VarationalAutoencoder()
-
-    def test_variational(self):
-        return isinstance(self.vae, VAE)
+# class TestVariationalAutoencoder(TestCase):
+#     def setUp(self):
+#         pass
+#
+#     def test_variational(self):
+#         return isinstance(self.vae, VAE)

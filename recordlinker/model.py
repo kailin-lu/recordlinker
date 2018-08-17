@@ -11,32 +11,37 @@ import warnings
 
 import keras
 import keras.backend as K
+from keras.models import load_model
 from keras import regularizers
 from keras.callbacks import TensorBoard, EarlyStopping
 from keras import Model
 from keras.layers import Input, Dense, Lambda, LeakyReLU
-from keras.layers import Conv1D, MaxPool1D, UpSampling1D, Reshape
+from keras.layers import Conv1D, Reshape
 from keras.layers import LSTM, RepeatVector, Flatten
 from keras.optimizers import RMSprop, Adam
 from keras.losses import binary_crossentropy, categorical_crossentropy, mse
 
 from .preprocess import disembed_letters, disembed_shingles
 
+
 # Variational autoencoder sampling
 class Sampling():
     '''Reparameterization trick to calculate z'''
+
     def __init__(self, batch_size):
         self.batch_size = batch_size
 
-    def sampling(self,args):
+    def sampling(self, args):
         mu, log_sigma = args
         dim = int(mu.shape[1])
-        epsilon = K.random_normal(shape=(self.batch_size, dim), mean=0., stddev=1.)
+        epsilon = K.random_normal(shape=(self.batch_size, dim), mean=0.,
+                                  stddev=1.)
         return mu + (.5 * log_sigma) * epsilon
 
 
 class VariationalLoss():
     '''Sum of loss and KL divergence '''
+
     def __init__(self, mu, log_sigma, loss_type='xent'):
         self.mu = mu
         self.log_sigma = log_sigma
@@ -48,17 +53,19 @@ class VariationalLoss():
         elif self.loss_type == 'binary_xent':
             loss = K.sum(binary_crossentropy(y_true, y_pred), axis=-1)
         elif self.loss_type == 'mse':
-            loss =  K.sum(mse(y_true, y_pred), axis=-1)
+            loss = K.sum(mse(y_true, y_pred), axis=-1)
         else:
             warnings.warn('Loss type not recognized')
         kl_loss = - 0.5 * K.mean(
-            1 + self.log_sigma - K.square(self.mu) - K.exp(self.log_sigma), axis=-1)
+            1 + self.log_sigma - K.square(self.mu) - K.exp(self.log_sigma),
+            axis=-1)
         return loss + kl_loss
 
 
 # Custom callback
 class CheckReconstruction(keras.callbacks.Callback):
     '''Qualitative check of name reconstruction'''
+
     def __init__(self,
                  train_data,
                  batch_size,
@@ -78,7 +85,7 @@ class CheckReconstruction(keras.callbacks.Callback):
         elif type in ['shingle', 's']:
             self.disembed_func = disembed_shingles
         else:
-            warnings.warn('Type must be "letter" or "shingle"')
+            raise ValueError('Type must be "letter" or "shingle"')
         self.batch_size = batch_size
         self.train_data = train_data
         self.n = n
@@ -88,7 +95,8 @@ class CheckReconstruction(keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs={}):
         ''' Every `display` epochs, print a random reconstruction of `n` names'''
         self.prediction = []
-        random_index = np.random.randint(0, len(self.train_data), self.batch_size)
+        random_index = np.random.randint(0, len(self.train_data),
+                                         self.batch_size)
         if self.seen % self.display == 0:
             batch_data = self.train_data[random_index, :]
             pred = self.model.predict(batch_data)
@@ -113,14 +121,15 @@ def encoder_dense(enc_input,
     if isinstance(encode_dim, int):
         encode_dim = [encode_dim]
 
-    assert isinstance(encode_dim, list), 'encode_dim must be int or list of ints'
+    assert isinstance(encode_dim,
+                      list), 'encode_dim must be int or list of ints'
 
     encode_layers = [enc_input]
-    for i,units in enumerate(encode_dim):
+    for i, units in enumerate(encode_dim):
         encode_layers.append(Dense(units,
-                      activation=activation,
-                      kernel_regularizer=regularizers.l2(.01),
-                      name='enc_{}'.format(i))(encode_layers[-1]))
+                                   activation=activation,
+                                   kernel_regularizer=regularizers.l2(.01),
+                                   name='enc_{}'.format(i))(encode_layers[-1]))
     return encode_layers
 
 
@@ -128,7 +137,7 @@ def encoder_conv(enc_input,
                  activation='relu',
                  kernel_size=3,
                  pool_size=3,
-                 filters=[16,16]):
+                 filters=[16, 16]):
     '''Encoder with convolutional layers'''
     encode_layers = [enc_input]
     encode_layers.append(Conv1D(filters=filters[0],
@@ -154,10 +163,10 @@ def encoder_lstm(enc_inputs,
                  encode_dim):
     '''Encoder with LSTM layers'''
     encode_layers = [enc_inputs]
-    encode_layers.append(LSTM(encode_dim,
-                              return_sequences=True)(encode_layers[-1]))
-    encode_layers.append(LSTM(encode_dim,
-                              return_sequences=True)(encode_layers[-1]))
+    for i, units in enumerate(encode_dim):
+        encode_layers.append(LSTM(units,
+                                  return_sequences=True,
+                                  name='enc_{}'.format(i))(encode_layers[-1]))
     return encode_layers
 
 
@@ -170,7 +179,8 @@ def decoder_dense(dec_input,
     if isinstance(decode_dim, int):
         decode_dim = [decode_dim]
 
-    assert isinstance(decode_dim, list), 'decode_dim must be int or list of ints'
+    assert isinstance(decode_dim,
+                      list), 'decode_dim must be int or list of ints'
     decode_layers = [dec_input]
     for i, units in enumerate(decode_dim):
         layer = Dense(units,
@@ -187,12 +197,12 @@ def decoder_dense(dec_input,
 def decoder_conv(z,
                  orig_units,
                  kernel_size=3,
-                 filter_size=[16,16],
+                 filter_size=[16, 16],
                  upsample_size=2,
                  activation='relu'):
     '''Convolutional decoder with convolutional layers'''
     decode_layers = [z]
-    decode_layers.append(Reshape((int(z.shape[1]),1))(z))
+    decode_layers.append(Reshape((int(z.shape[1]), 1))(z))
     decode_layers.append(Conv1D(kernel_size=kernel_size,
                                 padding='same',
                                 filters=filter_size[0],
@@ -211,7 +221,8 @@ def decoder_conv(z,
                                 activation=activation,
                                 kernel_regularizer=regularizers.l2(.01),
                                 name='dec_conv_2')(decode_layers[-1]))
-    decode_layers.append(Reshape((int(decode_layers[-1].shape[1]),))(decode_layers[-1]))
+    decode_layers.append(
+        Reshape((int(decode_layers[-1].shape[1]),))(decode_layers[-1]))
     decode_layers.append(Dense(orig_units,
                                activation='sigmoid',
                                name='reconstruction')(decode_layers[-1]))
@@ -221,13 +232,13 @@ def decoder_conv(z,
 def decoder_lstm(encoded,
                  timesteps,
                  orig_dim,
-                 decode_dim=64):
+                 decode_dim=[64, 64]):
     '''Decoder with LSTM layers and a softmax output'''
     decoder_layers = [RepeatVector(timesteps)(encoded)]
-    decoder_layers.append(LSTM(decode_dim,
-                               return_sequences=True)(decoder_layers[-1]))
-    decoder_layers.append(LSTM(decode_dim,
-                               return_sequences=True)(decoder_layers[-1]))
+    for i, units in enumerate(decode_dim):
+        decoder_layers.append(LSTM(units,
+                                   return_sequences=True,
+                                   name='dec_{}'.format(i))(decoder_layers[-1]))
     decoder_layers.append(Dense(orig_dim,
                                 activation='softmax')(decoder_layers[-1]))
     return decoder_layers
@@ -297,7 +308,8 @@ class VAE():
               tensorboard=True,
               reconstruct=True,
               reconstruct_type='letter',
-              reconstruct_display=20):
+              reconstruct_display=20,
+              train_model_path=None):
         '''
         Train the dense autoencoder model
 
@@ -313,22 +325,27 @@ class VAE():
         :reconstruct_type: 'letter' or 'shingle'
         :reconstruct_display: display reconstruction every n epochs
         '''
-        # Check if the save directory exists, create if not
-        if not os.path.isdir(save_path):
-            os.makedirs(save_path)
-
-        model, encoder, decoder, vae_loss = self._build_model()
-
-        if optimizer == 'adam':
-            op = Adam(lr=self.lr)
-        if optimizer == 'rmsprop':
-            op = RMSprop(lr=self.lr)
+        # TODO: add ability to train existing models
+        if train_model_path:
+            encoder = load_model(train_model_path + '_encoder.h5')
+            decoder = load_model(train_model_path + '_decoder.h5')
         else:
-            op = optimizer
+            # Check if the save directory exists, create if not
+            if not os.path.isdir(save_path):
+                os.makedirs(save_path)
 
-        model.compile(optimizer=op,
-                      loss=vae_loss,
-                      metrics=['accuracy'])
+            model, encoder, decoder, vae_loss = self._build_model()
+
+            if optimizer == 'adam':
+                op = Adam(lr=self.lr)
+            if optimizer == 'rmsprop':
+                op = RMSprop(lr=self.lr)
+            else:
+                op = optimizer
+
+            model.compile(optimizer=op,
+                          loss=vae_loss,
+                          metrics=['accuracy'])
 
         # Callbacks
         callbacks = []
@@ -349,7 +366,6 @@ class VAE():
                                               display=reconstruct_display,
                                               n=5)
             callbacks.append(check_recon)
-
         # Fit the model
         model.fit(namesA, namesB,
                   shuffle=True,
@@ -357,16 +373,11 @@ class VAE():
                   batch_size=self.batch_size,
                   validation_split=validation_split,
                   callbacks=callbacks)
-
-        # Save full model
-        model.save(save_path + 'model.h5')
-        print('Saved model in: {}'.format(save_path + 'model.h5'))
-
         # Save encoder
         encoder.save(save_path + '/encoder.h5')
         print('Saved encoder in: {}'.format(save_path + 'encoder.h5'))
 
-        #Save decoder
+        # Save decoder
         decoder.save(save_path + '/decoder.h5')
         print('Saved decoder in: {}'.format(save_path + 'decoder.h5'))
 
@@ -431,7 +442,7 @@ class LSTMVAE(VAE):
 
     def _build_model(self):
         K.clear_session()
-        encoder_input = Input(shape=(self.timesteps,self.orig_dim))
+        encoder_input = Input(shape=(self.timesteps, self.orig_dim))
         encoder_layers = encoder_lstm(encoder_input,
                                       orig_dim=self.timesteps,
                                       encode_dim=self.encode_dim,
@@ -467,5 +478,6 @@ class LSTMVAE(VAE):
 
         print(model.summary())
 
-        lstm_loss = VariationalLoss(mu=mu, log_sigma=log_sigma, loss_type='xent')
+        lstm_loss = VariationalLoss(mu=mu, log_sigma=log_sigma,
+                                    loss_type='xent')
         return model, encoder, decoder, lstm_loss.vae_loss

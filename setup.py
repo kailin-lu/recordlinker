@@ -6,9 +6,11 @@ setup(name='recordlinker',
       license='MIT',
       keywords='recordlinker autoencoder blocking record linkage',
       install_requires=[
-          'numpy',
-          'pandas',
-          'tensorflow'
+          'numpy>=1.0',
+          'pandas>=0.22',
+          'tensorflow>=1.4',
+          'Keras>=2.0',
+          'pyjarowinkler>=1.0'
       ],
       test_suite='nose.collector',
       tests_require=['nose']
