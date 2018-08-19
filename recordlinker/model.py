@@ -350,7 +350,8 @@ class VAE():
         # Callbacks
         callbacks = []
         if earlystop:
-            early_stop = EarlyStopping(patience=5,
+            early_stop = EarlyStopping(monitor='val_loss',
+                                       patience=5,
                                        min_delta=.0001)
             callbacks.append(early_stop)
         if tensorboard:
