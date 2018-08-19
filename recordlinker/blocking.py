@@ -108,6 +108,7 @@ class Blocker():
                                                           split=True)
         match_encoded = self.encoder.encode(self.dfB[autoencoder_colB],
                                             split=True)
+
         unique_blocks = [self.stringify(vec) for vec in
                          np.unique(train_encoded, axis=0)]
         blocks = defaultdict(dict)
@@ -269,7 +270,7 @@ class Blocker():
 
         print('Num Blocks:', self.num_blocks)
 
-        block_sizes = []
+        self.block_sizes = []
         for k, v in self.blocks.items():
             self.block_sizes.append(len(v['A']) * len(v['B']))
 
@@ -288,8 +289,8 @@ class Blocker():
         print('Max Block Size: {:,}'.format(self.max_block_size))
         print('Min Block Size: {:,}'.format(self.min_block_size))
 
-        pct_in_largest_block = self.max_block_size / self.total_pairs
-        pct_in_smallest_block = self.min_block_size / self.total_pairs
+        pct_in_largest_block = 100*self.max_block_size / self.total_pairs
+        pct_in_smallest_block = 100*self.min_block_size / self.total_pairs
 
         print('Balance Score (1=even sizes): {:2f}'.format(
             pct_in_smallest_block / pct_in_largest_block))
@@ -313,22 +314,23 @@ class Blocker():
                     blocks_with_matches += 1
 
             # Within block % matches
-            print('Num Matches Found {} Out Of {} ({:.2f}%)'.format(matches_in_same_block,
-                                                                    total_matches,
-                                                                    100 * matches_in_same_block / total_matches))
-            print('Num blocks containing matches {}, ({:.2f}%)'.format(blocks_with_matches,
-                                                                       100 * blocks_with_matches / self.num_blocks))
+            print('Num Matches Found {} Out Of {} ({:.2f}%)'.format(
+                matches_in_same_block,
+                total_matches,
+                100 * matches_in_same_block / total_matches))
+
+            print('Num blocks containing matches {}, ({:.2f}%)'.format(
+                blocks_with_matches,
+                100 * blocks_with_matches / self.num_blocks))
 
 
-class Linker():
+class Comparer():
     def __init__(self,
-                 blocker, cols):
-        self.blocker = blocker
-        self.cols = cols
-        self.encoder = blocker.encoder
+                 blocker):
+        self.blocks = blocker.blocks
         self.dfA = blocker.dfA
         self.dfB = blocker.dfB
-        self.cpu_count = mp.cpu_count()
+        self._possible_pairs()
 
     @staticmethod
     def _get_pairs(args):
@@ -338,68 +340,56 @@ class Linker():
 
     def _possible_pairs(self):
         p = mp.Pool(processes=mp.cpu_count())
-        results = p.map(self._get_pairs, self.blocker.blocks.items())
+        results = p.map(self._get_pairs, self.blocks.items())
         p.close()
-        return pd.concat(results, ignore_index=True)
+        self.features = pd.concat(results, ignore_index=True)
 
-    @staticmethod
-    def jaro_winkler(arg):
-        return [distance.get_jaro_distance(a, b) for (a, b) in arg]
-
-    def enc_dist(self, args):
-        a, b = args
-        vecA = self.encoder.encode(
-            self.blocker.preprocess(self.dfA.iloc[a], self.cols[0]))
-        vecB = self.encoder.encode(
-            self.blocker.preprocess(self.dfB.iloc[b], self.cols[1]))
-        return metrics.normalized_l1(vecA, vecB)
-
-    @staticmethod
-    def autoencoder_dist(args):
-        return np.reshape([Linker.enc_dist(arg) for arg in args], -1)
-
-    def compare(self,
-                jaro=True,
-                jaro_thres=None,
-                autoencoder=True,
-                autoencoder_thres=None):
+    def compare_autoencoder(self,
+                            colA,
+                            model_path,
+                            colB=None):
         start_time = time.time()
-        self.comparisons = self._possible_pairs()
-        print('Checkpoint {:1f}'.format(time.time() - start_time))
+        if colB is None:
+            colB = colA
+        distance_encoder = BinaryEncoder(model_path)
+        train_enc = distance_encoder.calculate_and_encode(self.dfA[colA])
+        match_enc = distance_encoder.encode(self.dfB[colB])
 
-        A = self.dfA[self.cols[0]].iloc[self.comparisons['indexA']]
-        B = self.dfB[self.cols[1]].iloc[self.comparisons['indexB']]
+        allA_enc = train_enc[self.features['indexA']]
+        allB_enc = match_enc[self.features['indexB']]
 
-        print('Checkpoint {:1f}'.format(time.time() - start_time))
+        self.features['autoencoder'] = metrics.normalized_l1(allA_enc,
+                                                             allB_enc)
+        print('Finished computing autoencoder feature in {:4f} s'.format(
+            time.time()-start_time))
 
-        if jaro:
-            p = mp.Pool(processes=self.cpu_count())
-            items = list(zip(A, B))
-            batch_size = len(items) // 8
-            items = [items[i:i + batch_size] for i in
-                     range(0, len(items), batch_size)]
-            results = p.map(self.jaro_winkler, items)
-            self.comparisons['jaro'] = pd.Series(
-                [item for result in results for item in result])
-            p.close()
-            print('Checkpoint {:1f}'.format(time.time() - start_time))
-            if jaro_thres:
-                self.comparisons['jaro'] = self.comparisons[
-                                               'jaro'] >= jaro_thres
-        if autoencoder:
-            p = mp.Pool(processes=self.cpu_count())
-            A = names_1915['lname1915'].iloc[self.comparisons['indexA']]
-            B = names_1940['lname1940'].iloc[comparisons['indexB']]
-            items = list(zip(comparisons['indexA'], comparisons['indexB']))
-            batch_size = len(items) // 8
-            items = [items[i:i + batch_size] for i in
-                     range(0, len(items), batch_size)]
-            results = p.map(autoencoder_dist, items)
-            if autoencoder_thres:
-                self.comparisons['autoencoder'] = self.comparisons[
-                                                      'autoencoder'] >= autoencoder_thres
+    def compare_jarowinkler(self,
+                            colA,
+                            colB=None):
+        start_time = time.time()
+        if colB is None:
+            colB = colA
+        namesA = self.dfA[colA].iloc[self.features['indexA']]
+        namesB = self.dfB[colB].iloc[self.features['indexB']]
+        names = pd.Series(list(zip(namesA, namesB)))
 
-        return self.comparisons
+        self.features['jarowinkler'] = names.apply(
+            lambda x: distance.get_jaro_distance(x[0], x[1]))
+
+        print('Finished computing autoencoder feature in {:4f} s'.format(
+            time.time()-start_time))
+
+    def binarize(self,
+                 thresholds):
+        for k, v in thresholds.items():
+            self.features[k] = self.features[k].apply(lambda x: x >= v).astype(int)
+        return self.features
+
+
+class Linker():
+    def __init__(self,
+                 features):
+        self.features = features
 
     def fit(self):
         pass
