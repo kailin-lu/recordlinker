@@ -379,20 +379,30 @@ class Comparer():
         print('Finished computing autoencoder feature in {:4f} s'.format(
             time.time()-start_time))
 
-    def binarize(self,
-                 thresholds):
-        for k, v in thresholds.items():
-            self.features[k] = self.features[k].apply(lambda x: x >= v).astype(int)
-        return self.features
+    def compare_product(self, a, b):
+        start_time = time.time()
+        self.features['product-{}-{}'.format(a,b)] = self.features[a] * self.features[b]
+        print('Finished computing product feature in {:4f} s'.format(
+            time.time()-start_time))
 
+    def discretize(self,
+                 thresholds,
+                 binary=False):
 
-class Linker():
-    def __init__(self,
-                 features):
-        self.features = features
-
-    def fit(self):
-        pass
-
-    def predict(self):
-        pass
+        def _assign_level(x, thres):
+            if x == 1:
+                return 2
+            elif x >= thres:
+                return 1
+            else:
+                return 0
+        if binary:
+            for k, v in thresholds.items():
+                self.features[k] = self.features[k].apply(
+                    lambda x: x >= v).astype(int)
+            return self.features
+        else:
+            for k, v in thresholds.items():
+                self.features[k] = self.features[k].apply(
+                    lambda x: _assign_level(x,v)).astype(int)
+            return self.features
