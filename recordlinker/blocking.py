@@ -7,6 +7,7 @@ from collections import defaultdict
 import itertools
 import time
 import multiprocessing as mp
+import copy
 
 import numpy as np
 import pandas as pd
@@ -18,6 +19,7 @@ from . import metrics
 
 
 class BinaryEncoder():
+    '''Class for encoding string names as binary vectors'''
     def __init__(self,
                  model_path,
                  embed_type='letters'):
@@ -77,6 +79,7 @@ class BinaryEncoder():
 
 
 class Blocker():
+    '''Reduce number of comparisons by blocking'''
     def __init__(self, dfA, dfB):
         self.dfA = dfA
         self.dfB = dfB
@@ -96,6 +99,7 @@ class Blocker():
                            autoencoder_col,
                            autoencoder_colB=None,
                            autoencoder_embed_type='letters'):
+        '''Block on autoencoder encoding'''
         start_time = time.time()
         if autoencoder_colB is None:
             autoencoder_colB = autoencoder_col
@@ -134,6 +138,7 @@ class Blocker():
                          timeframe_colB=None,
                          timeframe_range=0,
                          timeframe_units='y'):
+        '''Block on timeframe range'''
         start_time = time.time()
         if timeframe_colB is None:
             timeframe_colB = timeframe_col
@@ -181,6 +186,7 @@ class Blocker():
                      blocks,
                      exact_col,
                      exact_colB=None):
+        '''Block on exact match with flexible datatype'''
         start_time = time.time()
         if exact_colB is None:
             exact_colB = exact_col
@@ -325,6 +331,7 @@ class Blocker():
 
 
 class Comparer():
+    '''Class to generate comparison features'''
     def __init__(self,
                  blocker):
         self.blocks = blocker.blocks
@@ -339,6 +346,7 @@ class Comparer():
         return pd.DataFrame(pairs, columns=['indexA', 'indexB'])
 
     def _possible_pairs(self):
+        '''Create dataframe with all possible pairs'''
         p = mp.Pool(processes=mp.cpu_count())
         results = p.map(self._get_pairs, self.blocks.items())
         p.close()
@@ -347,7 +355,8 @@ class Comparer():
     def compare_autoencoder(self,
                             colA,
                             model_path,
-                            colB=None):
+                            colB=None,
+                            colname='autoencoder'):
         start_time = time.time()
         if colB is None:
             colB = colA
@@ -358,14 +367,16 @@ class Comparer():
         allA_enc = train_enc[self.features['indexA']]
         allB_enc = match_enc[self.features['indexB']]
 
-        self.features['autoencoder'] = metrics.normalized_l1(allA_enc,
+        self.features[colname] = metrics.normalized_l1(allA_enc,
                                                              allB_enc)
         print('Finished computing autoencoder feature in {:4f} s'.format(
             time.time()-start_time))
 
     def compare_jarowinkler(self,
                             colA,
-                            colB=None):
+                            colB=None,
+                            colname='jarowinkler'):
+        '''Compute Jaro Winkler distance'''
         start_time = time.time()
         if colB is None:
             colB = colA
@@ -373,13 +384,14 @@ class Comparer():
         namesB = self.dfB[colB].iloc[self.features['indexB']]
         names = pd.Series(list(zip(namesA, namesB)))
 
-        self.features['jarowinkler'] = names.apply(
+        self.features[colname] = names.apply(
             lambda x: distance.get_jaro_distance(x[0], x[1]))
 
         print('Finished computing autoencoder feature in {:4f} s'.format(
             time.time()-start_time))
 
     def compare_product(self, a, b):
+        '''Create features for product distance'''
         start_time = time.time()
         self.features['product-{}-{}'.format(a,b)] = self.features[a] * self.features[b]
         print('Finished computing product feature in {:4f} s'.format(
@@ -388,21 +400,28 @@ class Comparer():
     def discretize(self,
                  thresholds,
                  binary=False):
+        '''Return discrete version of the features dataframe
+
+        :param thresholds: dictionary of lower bound threshold for match / partial match
+        :param binary: if True then binary, else include 3 levels with partial match
+        '''
+        features = copy.deepcopy(self.features)
 
         def _assign_level(x, thres):
-            if x == 1:
+            if x > .92:
                 return 2
             elif x >= thres:
                 return 1
             else:
                 return 0
+
         if binary:
             for k, v in thresholds.items():
-                self.features[k] = self.features[k].apply(
+                features[k] = features[k].apply(
                     lambda x: x >= v).astype(int)
-            return self.features
+            return features
         else:
             for k, v in thresholds.items():
-                self.features[k] = self.features[k].apply(
+                features[k] = features[k].apply(
                     lambda x: _assign_level(x,v)).astype(int)
-            return self.features
+            return features

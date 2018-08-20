@@ -3,17 +3,17 @@ from unittest import TestCase
 from recordlinker.model import VAE, ConvolutionalVAE, LSTMVAE
 
 class TestDenseEncoder(TestCase):
-    pass
+    def test_create_dense_encoder(self):
+        vae = VAE()
+        pass
 
 class TestConvEncoder(TestCase):
-    pass
+    def test_create_conv_encoder(self):
+        conv = ConvolutionalVAE()
+        pass
 
 class TestLSTMEncoder(TestCase):
-    pass
+    def test_create_lstm_encoder(self):
+        lstm = LSTMVAE()
+        pass
 
-# class TestVariationalAutoencoder(TestCase):
-#     def setUp(self):
-#         pass
-#
-#     def test_variational(self):
-#         return isinstance(self.vae, VAE)

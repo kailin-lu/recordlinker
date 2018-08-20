@@ -12,6 +12,7 @@ def normalized_l1(A, B):
 
 
 def cos_similarity(u, v):
+    '''Cosine similarity metric'''
     denom = (np.linalg.norm(u) * np.linalg.norm(v))
     num = np.dot(u, v)
     if denom == 0:
